@@ -416,6 +416,11 @@
             :options   {:topBar {:visible false}}
             :component wallet.swap/swap}
 
+           {:name      :swap-asset-selector
+            ;;TODO dynamic title
+            :options   {:topBar {:visible false}}
+            :component wallet.swap/asset-selector}
+
            ;;MY STATUS
 
            {:name      :status
