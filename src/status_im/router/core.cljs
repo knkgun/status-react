@@ -12,7 +12,8 @@
             [status-im.ethereum.core :as ethereum]
             [status-im.utils.db :as utils.db]
             [status-im.utils.http :as http]
-            [status-im.chat.models :as chat.models]))
+            [status-im.chat.models :as chat.models]
+            [status-im.utils.wallet-connect :as wallet-connect]))
 
 (def ethereum-scheme "ethereum:")
 
@@ -231,6 +232,9 @@
 
       (http/url? uri)
       (cb (match-browser-string uri))
+
+      (wallet-connect/url? uri)
+      (cb {:type :wallet-connect :data uri})
 
       :else
       (cb {:type :undefined

@@ -157,7 +157,7 @@
   (.registerComponentDidDisappearListener
    (.events Navigation)
    (fn [^js evn]
-     (when-not (#{"popover" "bottom-sheet" "signing-sheet" "visibility-status-popover"}
+     (when-not (#{"popover" "bottom-sheet" "signing-sheet" "wallet-connect-sheet" "visibility-status-popover"}
                 (.-componentName evn))
        (doseq [[_ {:keys [ref value]}] @quo.text-input/text-input-refs]
          (.setNativeProps ^js ref (clj->js {:text value})))
@@ -331,6 +331,17 @@
 
 (re-frame/reg-fx :show-bottom-sheet (fn [] (show-overlay "bottom-sheet")))
 (re-frame/reg-fx :hide-bottom-sheet (fn [] (dissmiss-overlay "bottom-sheet")))
+
+;; WALLET CONNECT
+
+(defonce wallet-connect-sheet-reg
+  (.registerComponent Navigation
+                      "wallet-connect-sheet"
+                      (fn [] (gestureHandlerRootHOC views/wallet-connect-comp))
+                      (fn [] views/wallet-connect-comp)))
+
+(re-frame/reg-fx :show-wallet-connect-sheet (fn [] (show-overlay "wallet-connect-sheet")))
+(re-frame/reg-fx :hide-wallet-connect-sheet (fn [] (dissmiss-overlay "wallet-connect-sheet")))
 
 ;; SIGNING
 

@@ -58,7 +58,8 @@
             status-im.wallet.accounts.core
             status-im.wallet.choose-recipient.core
             [status-im.wallet.core :as wallet]
-            status-im.wallet.custom-tokens.core))
+            status-im.wallet.custom-tokens.core
+            status-im.wallet-connect.core))
 
 (re-frame/reg-fx
  :dismiss-keyboard
