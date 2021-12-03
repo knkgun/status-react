@@ -107,35 +107,35 @@
       [react/view {:flex 1}
        [react/view {:flex-direction :row :margin-bottom 8 :padding-horizontal 4}
         [tabs/tab-title state :assets (i18n/label :t/wallet-assets) (= tab :assets)]
+        (when ethereum-network?
+          [:<>
+           [tabs/tab-title state :nft (i18n/label :t/wallet-collectibles) (= tab :nft)]
+           [tabs/tab-title state :history (i18n/label :t/history) (= tab :history)]])]
         [quo/separator {:style {:margin-top -8}}]
-        (when ethereum-network?
-          [tabs/tab-title state :nft (i18n/label :t/wallet-collectibles) (= tab :nft)])
-        (when ethereum-network?
-          [tabs/tab-title state :history (i18n/label :t/history) (= tab :history)])]]
-      (cond
-        (= tab :assets)
-        [:<>
-         (for [item tokens]
-           ^{:key (:name item)}
-           [accounts/render-asset item nil nil (:code currency)])]
-        (= tab :nft)
-        [:<>
-         [opensea-link address]
-         ;; Hide collectibles behind a feature flag
-         (when config/collectibles-enabled?
-           (cond
-             (not opensea-enabled?)
-             [collectibles.views/enable-opensea-view]
+       (cond
+         (= tab :assets)
+         [:<>
+          (for [item tokens]
+            ^{:key (:name item)}
+            [accounts/render-asset item nil nil (:code currency)])]
+         (= tab :nft)
+         [:<>
+          [opensea-link address]
+          ;; Hide collectibles behind a feature flag
+          (when config/collectibles-enabled?
+            (cond
+              (not opensea-enabled?)
+              [collectibles.views/enable-opensea-view]
 
-             (and opensea-enabled? (seq collectible-collection))
-             [collectibles.views/nft-collections address]
+              (and opensea-enabled? (seq collectible-collection))
+              [collectibles.views/nft-collections address]
 
-             :else
-             [react/view {:align-items :center :margin-top 32}
-              [react/text {:style {:color colors/gray}}
-               (i18n/label :t/no-collectibles)]]))]
-        (= tab :history)
-        [transactions address]))))
+              :else
+              [react/view {:align-items :center :margin-top 32}
+               [react/text {:style {:color colors/gray}}
+                (i18n/label :t/no-collectibles)]]))]
+         (= tab :history)
+         [transactions address])])))
 
 (views/defview bottom-send-recv-buttons [{:keys [address type] :as account} anim-y]
   [react/animated-view {:style {:background-color colors/white

@@ -1,8 +1,7 @@
 (ns status-im.wallet.swap.core
   (:require [status-im.utils.fx :as fx]
             [re-frame.db :as re-frame.db]
-            [status-im.navigation :as navigation]
-            [status-im.ethereum.tokens :as tokens]))
+            [status-im.navigation :as navigation]))
 
 (fx/defn open-asset-selector-modal
   "source? true signinfies we are selecting the source asset. false implies selection of sink asset"
@@ -30,6 +29,13 @@
 (fx/defn set-max-from-token-amount
   [{:keys [db]} _]
   {:db (assoc db :wallet/swap-from-token-amount 0)})
+
+(fx/defn switch-from-token-with-to
+  {:events [::switch-from-token-with-to]}
+  [{:keys [db]}]
+  {:db (assoc db
+              :wallet/swap-from-token (:wallet/swap-to-token db)
+              :wallet/swap-to-token (:wallet/swap-from-token db))})
 
 (comment
   (->> re-frame.db/app-db

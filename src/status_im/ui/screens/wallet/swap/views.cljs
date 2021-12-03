@@ -117,28 +117,33 @@
         :default-value       amount
         :editable            true
         :auto-focus          true
-        :on-change-text      #()
+        :on-change-text      #(re-frame/dispatch [(when source?
+                                                    ::wallet.swap/set-from-token-amount)
+                                                  %])
         :placeholder         "0.0"}]]
      [token-display {:token   token
                      :source? source?}]]))
 
 (defn separator-with-icon []
-  [react/view {:margin-vertical 8}
+  [react/view
+   {:margin-vertical 8}
    [quo/separator]
-   [react/view {:style {:background-color colors/gray-lighter
-                        :width            40
-                        :height           40
-                        :border-radius    40
-                        :border-width     4
-                        :border-color     colors/white
-                        :margin-top       -20
-                        :margin-bottom    -20
-                        :align-self       :center
-                        :align-items      :center
-                        :justify-content  :center}}
-    [react/image {:source (icons/icon-source :main-icons/change)
-                  :style  {:tint-color colors/gray
-                           :transform  [{:rotate "90deg"}]}}]]])
+   [react/touchable-opacity
+    {:on-press #(re-frame/dispatch [::wallet.swap/switch-from-token-with-to])}
+    [react/view {:style {:background-color colors/gray-lighter
+                         :width            40
+                         :height           40
+                         :border-radius    40
+                         :border-width     4
+                         :border-color     colors/white
+                         :margin-top       -20
+                         :margin-bottom    -20
+                         :align-self       :center
+                         :align-items      :center
+                         :justify-content  :center}}
+     [react/image {:source (icons/icon-source :main-icons/change)
+                   :style  {:tint-color colors/gray
+                            :transform  [{:rotate "90deg"}]}}]]]])
 
 (defn swap []
   (let [{:keys [name]}
