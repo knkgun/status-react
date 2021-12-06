@@ -129,8 +129,7 @@
     (str (count text) "/" max-length)]])
 
 (defn form []
-(let [{:keys [name description membership editing?]} (<sub [:communities/create])]
-  ;; (let [{:keys [name description]} (<sub [:communities/create])]
+  (let [{:keys [name description membership editing?]} (<sub [:communities/create])]
     [rn/scroll-view {:keyboard-should-persist-taps :handled
                      :style                   {:flex 1}
                      :content-container-style {:padding-vertical 16}}
@@ -169,7 +168,6 @@
                                          :size           :small}]
                          [quo/list-footer
                           (i18n/label (get-in memberships/options [membership :description] :t/membership-none-placeholder))]])]))
-    ;;  [photo-picker]]))
 
 (defn view []
   (let [{:keys [name description]} (<sub [:communities/create])]

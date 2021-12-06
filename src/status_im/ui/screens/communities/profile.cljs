@@ -52,7 +52,7 @@
               [quo/separator {:style {:margin-vertical 8}}]])
            [:<>
             (let [link #_{:clj-kondo/ignore [:unresolved-var]}
-                       (communities/universal-link community-id)]
+                  (communities/universal-link community-id)]
               [react/view {:padding-vertical 10
                            :padding-horizontal 16}
                [react/view {:margin-bottom 20}

@@ -9,11 +9,20 @@
    [status-im.utils.fx :as fx]
    [status-im.constants :as constants]
    [status-im.bottom-sheet.core :as bottom-sheet]
+   [status-im.utils.universal-links.core :as universal-links]
    [status-im.ethereum.json-rpc :as json-rpc]
    [quo.design-system.colors :as colors]
-   [status-im.navigation :as navigation]))
+   [status-im.navigation :as navigation]
+   [status-im.utils.handlers :refer [>evt]]
+   [status-im.ui.components.emoji-thumbnail.styles :as emoji-thumbnail-styles]
+   [status-im.notifications-center.core :as notification-center]))
 
 (def crop-size 1000)
+
+(defn universal-link [community-id]
+  (str (:external universal-links/domains)
+       "/c/"
+       community-id))
 
 (def featured
   [{:name "Status"
@@ -41,6 +50,14 @@
              {}
              chats))
 
+(defn <-categories-rpc [categ]
+  (reduce-kv (fn [acc k v]
+               (assoc acc
+                      (name k)
+                      v))
+             {}
+             categ))
+
 (defn <-rpc [c]
   (-> c
       (clojure.set/rename-keys {:canRequestAccess :can-request-access?
@@ -49,7 +66,8 @@
                                 :requestedToJoinAt :requested-to-join-at
                                 :isMember :is-member?})
       (update :members walk/stringify-keys)
-      (update :chats <-chats-rpc)))
+      (update :chats <-chats-rpc)
+      (update :categories <-categories-rpc)))
 
 (defn fetch-community-id-input [{:keys [db]}]
   (:communities/community-id-input db))
@@ -63,6 +81,10 @@
                  (update db :chats dissoc chat-id))
                db
                chat-ids)})
+
+(fx/defn handle-community
+  [{:keys [db]} {:keys [id] :as community}]
+  {:db (assoc-in db [:communities id] (<-rpc community))})
 
 (fx/defn handle-communities
   {:events [::fetched]}
@@ -80,7 +102,7 @@
   [cofx response-js]
   (fx/merge cofx
             (handle-response cofx response-js)
-            (navigation/navigate-to-cofx :home {})))
+            (navigation/pop-to-root-tab :chat-stack)))
 
 (fx/defn joined
   {:events [::joined ::requested-to-join]}
@@ -199,18 +221,21 @@
 (fx/defn create
   {:events [::create-confirmation-pressed]}
   [{:keys [db]}]
-  (let [{:keys [name description image]} (get db :communities/create)]
+  (let [{:keys [name description membership image]} (get db :communities/create)]
     ;; If access is ENS only, we set the access to require approval and set the rule
     ;; of ens only
-    (let [params {:name name
-                  :description description
-                  :membership constants/community-on-request-access
-                  :color (rand-nth colors/chat-colors)
-                  :image (string/replace-first (str image) #"file://" "")
-                  :imageAx 0
-                  :imageAy 0
-                  :imageBx crop-size
-                  :imageBy crop-size}]
+    (let [params (cond-> {:name name
+                          :description description
+                          :membership (or membership constants/community-no-membership-access)
+                          :color (rand-nth colors/chat-colors)
+                          :image (string/replace-first (str image) #"file://" "")
+                          :imageAx 0
+                          :imageAy 0
+                          :imageBx crop-size
+                          :imageBy crop-size}
+                   (= membership constants/community-rule-ens-only)
+                   (assoc :membership constants/community-on-request-access
+                          :ens-only true))]
 
       {::json-rpc/call [{:method     "wakuext_createCommunity"
                          :params     [params]
@@ -242,13 +267,15 @@
 
 (fx/defn create-channel
   {:events [::create-channel-confirmation-pressed]}
-  [cofx community-channel-name community-channel-description]
-  (let [community-id (fetch-community-id-input cofx)]
+  [{:keys [db] :as cofx}]
+  (let [community-id (fetch-community-id-input cofx)
+        {:keys [name description color emoji]} (get db :communities/create-channel)]
     {::json-rpc/call [{:method     "wakuext_createCommunityChat"
                        :params     [community-id
-                                    {:identity    {:display_name community-channel-name
-                                                   :color        (rand-nth colors/chat-colors)
-                                                   :description  community-channel-description}
+                                    {:identity    {:display_name name
+                                                   :description  description
+                                                   :color        color
+                                                   :emoji        emoji}
                                      :permissions {:access constants/community-channel-access-no-membership}}]
                        :js-response true
                        :on-success #(re-frame/dispatch [::community-channel-created %])
@@ -256,17 +283,43 @@
                                       (log/error "failed to create community channel" %)
                                       (re-frame/dispatch [::failed-to-create-community-channel %]))}]}))
 
+(def community-chat-id-length 68)
+
+(defn to-community-chat-id [chat-id]
+  (subs chat-id community-chat-id-length))
+
+(fx/defn edit-channel
+  {:events [::edit-channel-confirmation-pressed]}
+  [{:keys [db] :as cofx}]
+  (let [{:keys [name description color community-id emoji edit-channel-id category-id]}
+        (get db :communities/create-channel)]
+    {::json-rpc/call [{:method     "wakuext_editCommunityChat"
+                       :params     [community-id
+                                    edit-channel-id
+                                    {:identity    {:display_name name
+                                                   :description  description
+                                                   :color        color
+                                                   :emoji        emoji}
+                                     :category_id  category-id
+                                     :permissions {:access constants/community-channel-access-no-membership}}]
+                       :js-response true
+                       :on-success #(re-frame/dispatch [::community-channel-edited %])
+                       :on-error   #(do
+                                      (log/error "failed to edit community channel" %)
+                                      (re-frame/dispatch [::failed-to-edit-community-channel %]))}]}))
+
 (defn require-membership? [permissions]
   (not= constants/community-no-membership-access (:access permissions)))
 
-(def community-id-length 68)
-
 (defn can-post? [community _ local-chat-id]
-  (let [chat-id (subs local-chat-id community-id-length)]
+  (let [chat-id (to-community-chat-id local-chat-id)]
     (get-in community [:chats chat-id :can-post?])))
 
 (fx/defn reset-community-id-input [{:keys [db]} id]
   {:db (assoc db :communities/community-id-input id)})
+
+(fx/defn reset-channel-info [{:keys [db]}]
+  {:db (assoc db :communities/create-channel {})})
 
 (fx/defn invite-people-pressed
   {:events [::invite-people-pressed]}
@@ -274,7 +327,7 @@
   (fx/merge cofx
             (reset-community-id-input id)
             (bottom-sheet/hide-bottom-sheet)
-            (navigation/navigate-to :invite-people-community {:invite? true})))
+            (navigation/open-modal :invite-people-community {:invite? true})))
 
 (fx/defn share-community-pressed
   {:events [::share-community-pressed]}
@@ -282,14 +335,32 @@
   (fx/merge cofx
             (reset-community-id-input id)
             (bottom-sheet/hide-bottom-sheet)
-            (navigation/navigate-to :invite-people-community {})))
+            (navigation/open-modal :invite-people-community {})))
 
 (fx/defn create-channel-pressed
   {:events [::create-channel-pressed]}
-  [cofx id]
+  [{:keys [db] :as cofx} id]
   (fx/merge cofx
             (reset-community-id-input id)
-            (navigation/navigate-to :create-community-channel nil)))
+            (reset-channel-info)
+            (>evt [::create-channel-fields (rand-nth emoji-thumbnail-styles/emoji-picker-default-thumbnails)])
+            (navigation/open-modal :create-community-channel {:community-id id})))
+
+(fx/defn edit-channel-pressed
+  {:events [::edit-channel-pressed]}
+  [{:keys [db] :as cofx} community-id chat-name description color emoji chat-id category-id]
+  (let [{:keys [color emoji]} (if (string/blank? emoji)
+                                (rand-nth emoji-thumbnail-styles/emoji-picker-default-thumbnails)
+                                {:color color :emoji emoji})]
+    (fx/merge cofx
+              {:db (assoc db :communities/create-channel {:name            chat-name
+                                                          :description     description
+                                                          :color           color
+                                                          :community-id    community-id
+                                                          :emoji           emoji
+                                                          :edit-channel-id chat-id
+                                                          :category-id     category-id})}
+              (navigation/open-modal :edit-community-channel nil))))
 
 (fx/defn community-created
   {:events [::community-created]}
@@ -325,7 +396,7 @@
                                                   :membership  access
                                                   :color       color
                                                   :editing?    true})}
-              (navigation/navigate-to :communities {:screen :community-edit}))))
+              (navigation/navigate-to :community-edit nil))))
 
 (fx/defn community-imported
   {:events [::community-imported]}
@@ -348,6 +419,13 @@
             (navigation/navigate-back)
             (handle-response response-js)))
 
+(fx/defn community-channel-edited
+  {:events [::community-channel-edited]}
+  [cofx response-js]
+  (fx/merge cofx
+            (navigation/navigate-back)
+            (handle-response response-js)))
+
 (fx/defn create-field
   {:events [::create-field]}
   [{:keys [db]} field value]
@@ -358,12 +436,23 @@
   [{:keys [db]} field]
   {:db (update-in db [:communities/create] dissoc field)})
 
+(fx/defn create-channel-field
+  {:events [::create-channel-field]}
+  [{:keys [db]} field value]
+  {:db (assoc-in db [:communities/create-channel field] value)})
+
+(fx/defn create-channel-fields
+  {:events [::create-channel-fields]}
+  [{:keys [db]} field-values]
+  {:db (update-in db [:communities/create-channel] merge field-values)})
+
 (fx/defn member-banned
   {:events [::member-banned]}
   [cofx response-js]
   (fx/merge cofx
             (bottom-sheet/hide-bottom-sheet)
-            (handle-response response-js)))
+            (handle-response response-js)
+            (notification-center/get-activity-center-notifications-count)))
 
 (fx/defn member-ban
   {:events [::member-ban]}
@@ -449,3 +538,112 @@
   [{:keys [db]} enabled?]
   {::async-storage/set! {:communities-enabled? enabled?}
    :db (assoc db :communities/enabled? enabled?)})
+
+(fx/defn create-category
+  {:events [::create-category-confirmation-pressed]}
+  [_ community-id category-title chat-ids]
+  {::json-rpc/call [{:method     "wakuext_createCommunityCategory"
+                     :params     [{:communityId community-id
+                                   :categoryName category-title
+                                   :chatIds (map #(string/replace % community-id "") chat-ids)}]
+                     :js-response true
+                     :on-success #(do
+                                    (re-frame/dispatch [:navigate-back])
+                                    (re-frame/dispatch [:sanitize-messages-and-process-response %]))
+                     :on-error   #(log/error "failed to create community category" %)}]})
+
+(fx/defn remove-chat-from-category
+  {:events [:remove-chat-from-community-category]}
+  [{:keys [db]} community-id id categoryID]
+  (let [category (get-in db [:communities community-id :categories categoryID])
+        category-chats (map :id (filter #(and (= (:categoryID %) categoryID) (not= id (:id %)))
+                                        (vals (get-in db [:communities community-id :chats]))))]
+    {::json-rpc/call [{:method     "wakuext_editCommunityCategory"
+                       :params     [{:communityId community-id
+                                     :categoryId categoryID
+                                     :categoryName (:name category)
+                                     :chatIds category-chats}]
+                       :js-response true
+                       :on-success #(re-frame/dispatch [:sanitize-messages-and-process-response %])
+                       :on-error   #(log/error "failed to remove chat from community" %)}]}))
+
+(fx/defn delete-category
+  {:events [:delete-community-category]}
+  [_ community-id category-id]
+  {::json-rpc/call [{:method     "wakuext_deleteCommunityCategory"
+                     :params     [{:communityId community-id
+                                   :categoryId category-id}]
+                     :js-response true
+                     :on-success #(re-frame/dispatch [:sanitize-messages-and-process-response %])
+                     :on-error   #(log/error "failed to delete community category" %)}]})
+
+(fx/defn change-category
+  {:events [::change-category-confirmation-pressed]}
+  [cofx community-id category-id {:keys [id position categoryID]}]
+  (if (not (string/blank? category-id))
+    {::json-rpc/call [{:method     "wakuext_reorderCommunityChat"
+                       :params     [{:communityId community-id
+                                     :categoryId category-id
+                                     :chatId id
+                                     :position position}]
+                       :js-response true
+                       :on-success #(do
+                                      (re-frame/dispatch [:navigate-back])
+                                      (re-frame/dispatch [:sanitize-messages-and-process-response %]))
+                       :on-error   #(log/error "failed to change community category" %)}]}
+    (fx/merge cofx
+              (navigation/navigate-back)
+              (remove-chat-from-category community-id id categoryID))))
+
+(fx/defn reorder-category
+  {:events [::reorder-community-category]}
+  [_ community-id category-id new-position]
+  {::json-rpc/call [{:method     "wakuext_reorderCommunityCategories"
+                     :params     [{:communityId community-id
+                                   :categoryId  category-id
+                                   :position    new-position}]
+                     :js-response true
+                     :on-success  #(re-frame/dispatch [:sanitize-messages-and-process-response %])
+                     :on-error    #(log/error "failed to reorder community category" %)}]})
+
+(defn category-hash [public-key community-id category-id]
+  (hash (str public-key community-id category-id)))
+
+(fx/defn store-category-state
+  {:events [::store-category-state]}
+  [{:keys [db]} community-id category-id state-open?]
+  (let [public-key (get-in db [:multiaccount :public-key])
+        hash       (category-hash public-key community-id category-id)]
+    {::async-storage/set! {hash state-open?}}))
+
+(fx/defn update-category-states-in-db
+  {:events [::category-states-loaded]}
+  [{:keys [db]} community-id hashes states]
+  (let [public-key     (get-in db [:multiaccount :public-key])
+        categories-old (get-in db [:communities community-id :categories])
+        categories     (reduce (fn [acc [category-id category]]
+                                 (let [hash             (get hashes category-id)
+                                       state            (get states hash)
+                                       category-updated (assoc category :state state)]
+                                   (assoc acc category-id category-updated)))
+                               {} categories-old)]
+    {:db (update-in db [:communities community-id :categories] merge categories)}))
+
+(fx/defn load-category-states
+  {:events [::load-category-states]}
+  [{:keys [db]} community-id]
+  (let [public-key            (get-in db [:multiaccount :public-key])
+        categories            (get-in db [:communities community-id :categories])
+        {:keys [keys hashes]} (reduce (fn [acc category]
+                                        (let [category-id (get category 0)
+                                              hash        (category-hash
+                                                           public-key
+                                                           community-id
+                                                           category-id)]
+                                          (-> acc
+                                              (assoc-in [:hashes category-id] hash)
+                                              (update :keys #(conj % hash)))))
+                                      {} categories)]
+    {::async-storage/get {:keys keys
+                          :cb   #(re-frame/dispatch
+                                  [::category-states-loaded community-id hashes %])}}))
