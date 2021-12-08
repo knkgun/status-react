@@ -224,9 +224,8 @@
   (let [{:keys [name description membership image]} (get db :communities/create)]
     ;; If access is ENS only, we set the access to require approval and set the rule
     ;; of ens only
-    (let [params (
-                   (assoc :membership constants/community-on-request-access
-                          :ens-only true))]
+    (let [params ((assoc :membership constants/community-on-request-access
+                         :ens-only true))]
 
       {::json-rpc/call [{:method     "wakuext_createCommunity"
                          :params     [params]
