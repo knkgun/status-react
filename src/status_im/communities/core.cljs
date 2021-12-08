@@ -224,16 +224,7 @@
   (let [{:keys [name description membership image]} (get db :communities/create)]
     ;; If access is ENS only, we set the access to require approval and set the rule
     ;; of ens only
-    (let [params (cond-> {:name name
-                          :description description
-                          :membership (or membership constants/community-no-membership-access)
-                          :color (rand-nth colors/chat-colors)
-                          :image (string/replace-first (str image) #"file://" "")
-                          :imageAx 0
-                          :imageAy 0
-                          :imageBx crop-size
-                          :imageBy crop-size}
-                   (= membership constants/community-rule-ens-only)
+    (let [params (
                    (assoc :membership constants/community-on-request-access
                           :ens-only true))]
 
