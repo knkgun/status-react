@@ -1704,9 +1704,10 @@
     "status-always-online": "Always Online",
     "status-inactive": "Inactive",
     "status-inactive-subtitle": "Hides your online status",
-    "wallet-connect-proposal-title": "would like to connect to",
+    "wallet-connect-proposal-title": "Would like to connect with your wallet",
     "wallet-connect-proposal-description": "By connecting you allow {{name}} to retrieve your account address and enable Web3",
     "wallet-connect-app-connected": "is connected",
     "wallet-connect-go-back": "Go back to your browser or dapp",
-    "wallet-connect-2.0": "Wallet Connect 2.0"
+    "wallet-connect-2.0": "Wallet Connect 2.0",
+    "reject": "Reject"
 }
