@@ -12,7 +12,8 @@
             [status-im.ui.components.icons.icons :as icons]
             [quo.components.animated.pressable :as pressable]
             [status-im.ui.screens.status.views :as status.views]
-            [status-im.ui.screens.status.new.styles :as styles]))
+            [status-im.ui.screens.status.new.styles :as styles]
+            [status-im.utils.platform :as platform]))
 
 (defn buttons []
   [react/view styles/buttons
@@ -53,7 +54,8 @@
         input-text (re-frame/subscribe [:chats/timeline-chat-input-text])
         sending-image (re-frame/subscribe [:chats/timeline-sending-image])]
     (fn []
-      (let [{:keys [uri]} (first (vals @sending-image))]
+      (let [{:keys [uri]} (first (vals @sending-image))
+            text-lenght (count @input-text)]
         [kb-presentation/keyboard-avoiding-view {:style {:flex 1}}
          [:<>
           [react/scroll-view {:style                        {:flex 1}
@@ -65,7 +67,10 @@
             {:style                  {:margin 16}
              :scroll-enabled         false
              :accessibility-label    :my-status-input
-             :max-length             message-max-lenght
+             :max-length             (if platform/android?
+                                       message-max-lenght
+                                       (when (>= text-lenght message-max-lenght)
+                                         text-lenght))
              :auto-focus             true
              :multiline              true
              :on-selection-change    (fn [args]
@@ -100,11 +105,14 @@
                {:accessibility-label :send-my-status-button
                 :type                :secondary
                 :after               :main-icon/send
-                :disabled            (and (string/blank? @input-text) (not uri))
+                :disabled            (or (> text-lenght message-max-lenght)
+                                         (and (string/blank? @input-text) (not uri)))
                 :on-press            #(do
                                         (re-frame/dispatch [:profile.ui/send-my-status-message])
                                         (re-frame/dispatch [:navigate-back]))}
                (i18n/label :t/wallet-send)]}]
             [react/view styles/count-container
-             [react/text {:style {:color colors/gray}}
-              (str (count @input-text) " / " message-max-lenght)]]]]]]))))
+             [react/text {:style {:color (if (> text-lenght message-max-lenght)
+                                           colors/red
+                                           colors/gray)}}
+              (str text-lenght " / " message-max-lenght)]]]]]]))))
