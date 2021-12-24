@@ -23,8 +23,10 @@
             roles                false
             notifications        false
             show-members-count?  (not= (:access permissions) constants/community-no-membership-access)
-            members-count        (count members)]
+            members-count        (count members)
+            membership (:membership community)]
         [:<>
+      (js/console.log membership)
          [quo/animated-header {:left-accessories  [{:icon                :main-icons/arrow-left
                                                     :accessibility-label :back-button
                                                     :on-press            #(>evt [:navigate-back])}]
@@ -39,11 +41,15 @@
                                                                  (rn/resolve-asset-source
                                                                   (resources/get-image :status-logo)))
                                                                 (get-in community [:images :large :uri]))
+                                                    :membership (if (= membership constants/community-no-membership-access)
+                                                                (i18n/label :t/request-membership)
+                                                                (i18n/label :t/open-membership))
                                                     :subtitle (if show-members-count?
                                                                 (i18n/label-pluralize members-count :t/community-members {:count members-count})
                                                                 (i18n/label :t/open-membership))
                                                     :community? true})
                                :use-insets        true}
+           
           [:<>
            (when-not (string/blank? description)
              [:<>
